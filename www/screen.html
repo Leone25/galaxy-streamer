@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Galaxy streamer</title>
+</head>
+<body>
+    <button onclick="run()">Start!</button>
+    <div>
+        Preview:
+        <canvas id="preview"></canvas>
+    </div>
+    <script>
+    let ws = new WebSocket("wss://" + window.location.host);
+    async function run() {
+        // Ask for screen recording permission
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: false,
+        });
+
+        // Create a video element to play the screen recording
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+
+        // Wait for the video to load and play for a bit
+        await new Promise((resolve) => {
+            video.onloadedmetadata = () => {
+                setTimeout(() => {
+                    resolve();
+                }, 1000);
+            };
+        });
+
+        // Create a canvas element to draw the scaled screen recording
+        const canvas = document.getElementById("preview");
+        canvas.width = 32;
+        canvas.height = 32;
+
+        // Draw the scaled screen recording in the canvas with no smoothing
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        
+        let loop = setInterval(() => {
+            if (ws.readyState !== "OPEN") clearInterval(loop);
+            ctx.drawImage(video, 0, 0, 32, 32);
+            const imageData = ctx.getImageData(0, 0, 32, 32);
+            let modifiedData = new Uint8ClampedArray(imageData.data);
+            for (let i = 0; i < modifiedData.length; i += 4) {
+                [modifiedData[i], modifiedData[i+2]] = [modifiedData[i+2], modifiedData[i]];
+            }
+            ws.send(modifiedData.buffer);
+        }, 100);
+    }
+    </script>
+</body>
+</html>
